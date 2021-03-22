@@ -261,17 +261,19 @@ class Ldap extends Model
                 throw new Exception('Problem with your LDAP connection. Try checking the Use TLS setting in Admin > Settings. ');
             }
 
-
-            $search_results = ldap_search($ldapconn, $base_dn, '('.$filter.')');
+            if ($filter != '' && substr($filter, 0, 1) != '(') { // wrap parens around NON-EMPTY filters that DON'T have them, for back-compatibility with AdLdap2-based filters
+                $filter = "($filter)";
+            }
+            $search_results = ldap_search($ldapconn, $base_dn, $filter);
 
             if (!$search_results) {
-                return redirect()->route('users.index')->with('error', trans('admin/users/message.error.ldap_could_not_search').ldap_error($ldapconn));
+                return redirect()->route('users.index')->with('error', trans('admin/users/message.error.ldap_could_not_search').ldap_error($ldapconn)); // FIXME this is never called in any routed context - only from the Artisan command. So this redirect will never work.
             }
 
             // Get results from page
             $results = ldap_get_entries($ldapconn, $search_results);
             if (!$results) {
-                return redirect()->route('users.index')->with('error', trans('admin/users/message.error.ldap_could_not_get_entries').ldap_error($ldapconn));
+                return redirect()->route('users.index')->with('error', trans('admin/users/message.error.ldap_could_not_get_entries').ldap_error($ldapconn)); // FIXME this is never called in any routed context - only from the Artisan command. So this redirect will never work.
             }
 
             // Add results to result set
@@ -286,7 +288,7 @@ class Ldap extends Model
         // Clean up after search
         $result_set['count'] = $global_count;
         $results = $result_set;
-        ldap_control_paged_result($ldapconn, 0);
+        @ldap_control_paged_result($ldapconn, 0);
 
         return $results;
 

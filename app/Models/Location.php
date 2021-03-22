@@ -7,10 +7,11 @@ use App\Models\SnipeModel;
 use App\Models\Traits\Searchable;
 use App\Models\User;
 use App\Presenters\Presentable;
+use DB;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Gate;
 use Watson\Validating\ValidatingTrait;
-use DB;
 
 class Location extends SnipeModel
 {
@@ -20,14 +21,20 @@ class Location extends SnipeModel
     protected $dates = ['deleted_at'];
     protected $table = 'locations';
     protected $rules = array(
-      'name'        => 'required|min:2|max:255|unique_undeleted',
-      'city'        => 'min:2|max:255|nullable',
-      'country'     => 'min:2|max:2|nullable',
-      'address'         => 'max:80|nullable',
-      'address2'        => 'max:80|nullable',
-      'zip'         => 'min:3|max:10|nullable',
-      'manager_id'  => 'exists:users,id|nullable'
+        'name'          => 'required|min:2|max:255|unique_undeleted',
+        'city'          => 'min:2|max:255|nullable',
+        'country'       => 'min:2|max:2|nullable',
+        'address'       => 'max:80|nullable',
+        'address2'      => 'max:80|nullable',
+        'zip'           => 'min:3|max:10|nullable',
+        'manager_id'    => 'exists:users,id|nullable',
+        'parent_id'     => 'non_circular:locations,id'
     );
+
+    protected $casts = [
+        'parent_id'     => 'integer',
+        'manager_id'    => 'integer',
+    ];
 
     /**
     * Whether the model should inject it's identifier to the unique
@@ -69,7 +76,7 @@ class Location extends SnipeModel
      * 
      * @var array
      */
-    protected $searchableAttributes = ['name', 'address', 'city', 'state', 'zip', 'created_at'];
+    protected $searchableAttributes = ['name', 'address', 'city', 'state', 'zip', 'created_at', 'ldap_ou'];
 
     /**
      * The relations and their attributes that should be included when searching the model.
@@ -79,6 +86,14 @@ class Location extends SnipeModel
     protected $searchableRelations = [
       'parent' => ['name']
     ];
+
+    public function isDeletable()
+    {
+        return Gate::allows('delete', $this)
+                && ($this->assignedAssets()->count()===0)
+                && ($this->assets()->count()===0)
+                && ($this->users()->count()===0);
+    }
 
     public function users()
     {
@@ -113,7 +128,8 @@ class Location extends SnipeModel
 
     public function parent()
     {
-        return $this->belongsTo('\App\Models\Location', 'parent_id','id');
+        return $this->belongsTo('\App\Models\Location', 'parent_id','id')
+            ->with('parent');
     }
 
     public function manager()
@@ -121,9 +137,9 @@ class Location extends SnipeModel
         return $this->belongsTo('\App\Models\User', 'manager_id');
     }
 
-    public function childLocations()
-    {
-        return $this->hasMany('\App\Models\Location', 'parent_id');
+    public function children() {
+        return $this->hasMany('\App\Models\Location','parent_id')
+            ->with('children');
     }
 
     // I don't think we need this anymore since we de-normed location_id in assets?
@@ -137,59 +153,39 @@ class Location extends SnipeModel
         return $this->attributes['ldap_ou'] = empty($ldap_ou) ? null : $ldap_ou;
     }
 
-    public static function getLocationHierarchy($locations, $parent_id = null)
-    {
 
+    /**
+     * Query builder scope to order on parent
+     *
+     * @param  Illuminate\Database\Query\Builder  $query  Query builder instance
+     * @param  text                              $order       Order
+     *
+     * @return Illuminate\Database\Query\Builder          Modified query builder
+     */
 
-        $op = array();
+    public static function indenter($locations_with_children, $parent_id = null, $prefix = '') {
+        $results = Array();
 
-        foreach ($locations as $location) {
-
-            if ($location['parent_id'] == $parent_id) {
-                $op[$location['id']] =
-                    array(
-                        'name' => $location['name'],
-                        'parent_id' => $location['parent_id']
-                    );
-
-                // Using recursion
-                $children =  Location::getLocationHierarchy($locations, $location['id']);
-                if ($children) {
-                    $op[$location['id']]['children'] = $children;
-                }
-
-            }
-
+        
+        if (!array_key_exists($parent_id, $locations_with_children)) {
+            return [];
         }
-        return $op;
+
+
+        foreach ($locations_with_children[$parent_id] as $location) {
+            $location->use_text = $prefix.' '.$location->name;
+            $location->use_image = ($location->image) ? url('/').'/uploads/locations/'.$location->image : null;
+            $results[] = $location;
+            //now append the children. (if we have any)
+            if (array_key_exists($location->id, $locations_with_children)) {
+                $results = array_merge($results, Location::indenter($locations_with_children, $location->id,$prefix.'--'));
+            }
+        }
+        return $results;
     }
 
 
-    public static function flattenLocationsArray($location_options_array = null)
-    {
-        $location_options = array();
-        foreach ($location_options_array as $id => $value) {
 
-            // get the top level key value
-            $location_options[$id] = $value['name'];
-
-                // If there is a key named children, it has child locations and we have to walk it
-            if (array_key_exists('children', $value)) {
-
-                foreach ($value['children'] as $child_id => $child_location_array) {
-                    $child_location_options = Location::flattenLocationsArray($value['children']);
-
-                    foreach ($child_location_options as $child_id => $child_name) {
-                        $location_options[$child_id] = '--'.$child_name;
-                    }
-                }
-
-            }
-
-        }
-
-        return $location_options;
-    }
 
     /**
     * Query builder scope to order on parent

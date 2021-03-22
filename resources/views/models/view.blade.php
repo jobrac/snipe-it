@@ -35,9 +35,9 @@
       @if ($model->id)
         <div class="box-header with-border">
           <div class="box-heading">
-            <h3 class="box-title"> {{ $model->name }}
+            <h2 class="box-title"> {{ $model->name }}
                 {{ ($model->model_number) ? '(#'.$model->model_number.')' : '' }}
-            </h3>
+            </h2>
           </div>
         </div><!-- /.box-header -->
       @endif
@@ -90,13 +90,13 @@
       <div class="box box-default">
               <div class="box-header with-border">
                   <div class="box-heading">
-                      <h3 class="box-title"> More Info:</h3>
+                      <h2 class="box-title"> More Info:</h2>
                   </div>
               </div><!-- /.box-header -->
           <div class="box-body">
 
               @if ($model->image)
-                  <img src="{{ url('/') }}/uploads/models/{{ $model->image }}" class="img-responsive"></li>
+                  <img src="{{ Storage::disk('public')->url(app('models_upload_path').e($model->image)) }}" class="img-responsive"></li>
               @endif
 
 
@@ -112,7 +112,7 @@
                   {{ $model->manufacturer->name }}
               @endcan
               </li>
-              @endif
+
                   @if ($model->manufacturer->url)
                       <li>
                           <i class="fa fa-globe"></i> <a href="{{ $model->manufacturer->url }}">{{ $model->manufacturer->url }}</a>
@@ -138,7 +138,7 @@
                           <i class="fa fa-envelope"></i> <a href="mailto:{{ $model->manufacturer->support_email }}">{{ $model->manufacturer->support_email }}</a>
                       </li>
                   @endif
-
+                @endif
               @if ($model->model_number)
               <li>
                 {{ trans('general.model_no') }}:

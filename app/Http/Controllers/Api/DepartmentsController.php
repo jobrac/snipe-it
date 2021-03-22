@@ -2,20 +2,21 @@
 
 namespace App\Http\Controllers\Api;
 
-use Illuminate\Http\Request;
-use App\Http\Controllers\Controller;
-use App\Models\Department;
-use App\Http\Transformers\DepartmentsTransformer;
 use App\Helpers\Helper;
-use Auth;
+use App\Http\Controllers\Controller;
+use App\Http\Transformers\DepartmentsTransformer;
 use App\Http\Transformers\SelectlistTransformer;
+use App\Models\Department;
+use Auth;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class DepartmentsController extends Controller
 {
     /**
      * Display a listing of the resource.
      *
-     * @author [A. Gianotto] [<snipe@snipe.net>]
+     * @author [Godfrey Martinez] [<snipe@snipe.net>]
      * @since [v4.0]
      * @return \Illuminate\Http\Response
      */
@@ -39,8 +40,13 @@ class DepartmentsController extends Controller
             $departments = $departments->TextSearch($request->input('search'));
         }
 
-        $offset = (($departments) && (request('offset') > $departments->count())) ? 0 : request('offset', 0);
-        $limit = $request->input('limit', 50);
+        // Set the offset to the API call's offset, unless the offset is higher than the actual count of items in which
+        // case we override with the actual count, so we should return 0 items.
+        $offset = (($departments) && ($request->get('offset') > $departments->count())) ? $departments->count() : $request->get('offset', 0);
+
+        // Check to make sure the limit is not higher than the max allowed
+        ((config('app.max_results') >= $request->input('limit')) && ($request->filled('limit'))) ? $limit = $request->input('limit') : $limit = config('app.max_results');
+
         $order = $request->input('order') === 'asc' ? 'asc' : 'desc';
         $sort = in_array($request->input('sort'), $allowed_columns) ? $request->input('sort') : 'created_at';
 
@@ -100,14 +106,36 @@ class DepartmentsController extends Controller
         return (new DepartmentsTransformer)->transformDepartment($department);
     }
 
+    /**
+     * Update the specified resource in storage.
+     *
+     * @author [A. Gianotto] [<snipe@snipe.net>]
+     * @since [v5.0]
+     * @param  \Illuminate\Http\Request  $request
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function update(Request $request, $id)
+    {
+        $this->authorize('update', Department::class);
+        $department = Department::findOrFail($id);
+        $department->fill($request->all());
+
+        if ($department->save()) {
+            return response()->json(Helper::formatStandardApiResponse('success', $department, trans('admin/departments/message.update.success')));
+        }
+
+        return response()->json(Helper::formatStandardApiResponse('error', null, $department->getErrors()));
+    }
+
 
 
     /**
-     * Validates and deletes selected location.
+     * Validates and deletes selected department.
      *
      * @author [A. Gianotto] [<snipe@snipe.net>]
      * @param int $locationId
-     * @since [v1.0]
+     * @since [v4.0]
      * @return \Illuminate\Http\RedirectResponse
      */
     public function destroy($id)
@@ -152,7 +180,7 @@ class DepartmentsController extends Controller
         // This lets us have more flexibility in special cases like assets, where
         // they may not have a ->name value but we want to display something anyway
         foreach ($departments as $department) {
-            $department->use_image = ($department->image) ? url('/').'/uploads/departments/'.$department->image : null;
+            $department->use_image = ($department->image) ? Storage::disk('public')->url('departments/'.$department->image, $department->image) : null;
         }
 
         return (new SelectlistTransformer)->transformSelectlist($departments);

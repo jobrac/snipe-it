@@ -1,22 +1,14 @@
 <?php
 namespace App\Http\Controllers\Api;
 
-use View;
-use App\Models\CustomFieldset;
-use App\Models\CustomField;
-use Input;
-use Validator;
-use Redirect;
-use App\Models\AssetModel;
-use Lang;
-use Auth;
-use Illuminate\Http\Request;
-use Log;
-use App\Http\Controllers\Controller;
 use App\Helpers\Helper;
-use App\Http\Transformers\CustomFieldsTransformer;
+use App\Http\Controllers\Controller;
 use App\Http\Transformers\CustomFieldsetsTransformer;
-use App\Http\Requests\AssetRequest;
+use App\Http\Transformers\CustomFieldsTransformer;
+use App\Models\CustomFieldset;
+use Illuminate\Http\Request;
+use Redirect;
+use View;
 
 /**
  * This controller handles all actions related to Custom Asset Fieldsets for
@@ -58,7 +50,7 @@ class CustomFieldsetsController extends Controller
     */
     public function show($id)
     {
-      $this->authorize('show', CustomFieldset::class);
+      $this->authorize('view', CustomFieldset::class);
         if ($fieldset = CustomFieldset::find($id)) {
             return (new CustomFieldsetsTransformer)->transformCustomFieldset($fieldset);
         }

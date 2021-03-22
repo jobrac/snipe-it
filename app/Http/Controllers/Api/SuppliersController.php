@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers\Api;
 
-use Illuminate\Http\Request;
-use App\Http\Controllers\Controller;
 use App\Helpers\Helper;
-use App\Models\Supplier;
-use App\Http\Transformers\SuppliersTransformer;
+use App\Http\Controllers\Controller;
 use App\Http\Transformers\SelectlistTransformer;
-
+use App\Http\Transformers\SuppliersTransformer;
+use App\Models\Supplier;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class SuppliersController extends Controller
 {
@@ -22,7 +22,7 @@ class SuppliersController extends Controller
     public function index(Request $request)
     {
         $this->authorize('view', Supplier::class);
-        $allowed_columns = ['id','name','address','phone','contact','fax','email','image','assets_count','licenses_count', 'accessories_count'];
+        $allowed_columns = ['id','name','address','phone','contact','fax','email','image','assets_count','licenses_count', 'accessories_count','url'];
         
         $suppliers = Supplier::select(
                 array('id','name','address','address2','city','state','country','fax', 'phone','email','contact','created_at','updated_at','deleted_at','image','notes')
@@ -33,8 +33,13 @@ class SuppliersController extends Controller
             $suppliers = $suppliers->TextSearch($request->input('search'));
         }
 
-        $offset = (($suppliers) && (request('offset') > $suppliers->count())) ? 0 : request('offset', 0);
-        $limit = $request->input('limit', 50);
+        // Set the offset to the API call's offset, unless the offset is higher than the actual count of items in which
+        // case we override with the actual count, so we should return 0 items.
+        $offset = (($suppliers) && ($request->get('offset') > $suppliers->count())) ? $suppliers->count() : $request->get('offset', 0);
+
+        // Check to make sure the limit is not higher than the max allowed
+        ((config('app.max_results') >= $request->input('limit')) && ($request->filled('limit'))) ? $limit = $request->input('limit') : $limit = config('app.max_results');
+
         $order = $request->input('order') === 'asc' ? 'asc' : 'desc';
         $sort = in_array($request->input('sort'), $allowed_columns) ? $request->input('sort') : 'created_at';
         $suppliers->orderBy($sort, $order);
@@ -164,7 +169,7 @@ class SuppliersController extends Controller
         // they may not have a ->name value but we want to display something anyway
         foreach ($suppliers as $supplier) {
             $supplier->use_text = $supplier->name;
-            $supplier->use_image = ($supplier->image) ? url('/').'/uploads/suppliers/'.$supplier->image : null;
+            $supplier->use_image = ($supplier->image) ? Storage::disk('public')->url('suppliers/'.$supplier->image, $supplier->image) : null;
         }
 
         return (new SelectlistTransformer)->transformSelectlist($suppliers);

@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <html>
     <head>
       <title>
@@ -6,12 +7,7 @@
          Snipe-IT Setup
         @show
       </title>
-        <link rel="stylesheet" href="{{ url(asset('js/plugins/select2/select2.min.css')) }}">
         <link rel="stylesheet" href="{{ url(mix('css/dist/all.css')) }}">
-
-
-
-
 
 
         <script nonce="{{ csrf_token() }}">
@@ -119,7 +115,9 @@
                   </div>
               </div>
           </div>
-          <script src="{{ url(mix('js/dist/all.js')) }}" nonce="{{ csrf_token() }}"></script>
+          
+        {{-- Javascript files --}}
+          <script src="{{ url('js/dist/all.js') }}" nonce="{{ csrf_token() }}"></script>
 
         <script nonce="{{ csrf_token() }}">
             $(function () {

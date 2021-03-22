@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers\Api;
 
-use Illuminate\Http\Request;
-use App\Http\Controllers\Controller;
 use App\Helpers\Helper;
-use App\Models\Manufacturer;
-use App\Http\Transformers\DatatablesTransformer;
+use App\Http\Controllers\Controller;
 use App\Http\Transformers\ManufacturersTransformer;
 use App\Http\Transformers\SelectlistTransformer;
+use App\Models\Manufacturer;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class ManufacturersController extends Controller
 {
@@ -37,10 +37,13 @@ class ManufacturersController extends Controller
         }
 
 
+        // Set the offset to the API call's offset, unless the offset is higher than the actual count of items in which
+        // case we override with the actual count, so we should return 0 items.
+        $offset = (($manufacturers) && ($request->get('offset') > $manufacturers->count())) ? $manufacturers->count() : $request->get('offset', 0);
 
+        // Check to make sure the limit is not higher than the max allowed
+        ((config('app.max_results') >= $request->input('limit')) && ($request->filled('limit'))) ? $limit = $request->input('limit') : $limit = config('app.max_results');
 
-        $offset = (($manufacturers) && (request('offset') > $manufacturers->count())) ? 0 : request('offset', 0);
-        $limit = $request->input('limit', 50);
         $order = $request->input('order') === 'asc' ? 'asc' : 'desc';
         $sort = in_array($request->input('sort'), $allowed_columns) ? $request->input('sort') : 'created_at';
         $manufacturers->orderBy($sort, $order);
@@ -120,11 +123,21 @@ class ManufacturersController extends Controller
      */
     public function destroy($id)
     {
+
         $this->authorize('delete', Manufacturer::class);
         $manufacturer = Manufacturer::findOrFail($id);
         $this->authorize('delete', $manufacturer);
-        $manufacturer->delete();
-        return response()->json(Helper::formatStandardApiResponse('success', null,  trans('admin/manufacturers/message.delete.success')));
+
+        if ($manufacturer->isDeletable()) {
+            $manufacturer->delete();
+            return response()->json(Helper::formatStandardApiResponse('success', null,  trans('admin/manufacturers/message.delete.success')));
+        }
+
+        return response()->json(Helper::formatStandardApiResponse('error', null,  trans('admin/manufacturers/message.assoc_users')));
+
+
+
+
 
     }
 
@@ -156,7 +169,7 @@ class ManufacturersController extends Controller
         // they may not have a ->name value but we want to display something anyway
         foreach ($manufacturers as $manufacturer) {
             $manufacturer->use_text = $manufacturer->name;
-            $manufacturer->use_image = ($manufacturer->image) ? url('/').'/uploads/manufacturers/'.$manufacturer->image : null;
+            $manufacturer->use_image = ($manufacturer->image) ? Storage::disk('public')->url('manufacturers/'.$manufacturer->image, $manufacturer->image) : null;
         }
 
         return (new SelectlistTransformer)->transformSelectlist($manufacturers);

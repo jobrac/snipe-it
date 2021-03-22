@@ -9,7 +9,6 @@ use App\Models\AssetMaintenance;
 use App\Models\Company;
 use Auth;
 use Carbon\Carbon;
-use Gate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Input;
 
@@ -34,18 +33,23 @@ class AssetMaintenancesController extends Controller
      */
     public function index(Request $request)
     {
-        $maintenances = AssetMaintenance::with('asset', 'supplier', 'asset.company', 'admin');
+        $maintenances = AssetMaintenance::with('asset', 'asset.model','asset.location', 'supplier', 'asset.company', 'admin');
 
-        if (Input::has('search')) {
-            $maintenances = $maintenances->TextSearch(e($request->input('search')));
+        if ($request->filled('search')) {
+            $maintenances = $maintenances->TextSearch($request->input('search'));
         }
 
         if ($request->filled('asset_id')) {
             $maintenances->where('asset_id', '=', $request->input('asset_id'));
         }
 
-        $offset = (($maintenances) && (request('offset') > $maintenances->count())) ? 0 : request('offset', 0);
-        $limit = request('limit', 50);
+        // Set the offset to the API call's offset, unless the offset is higher than the actual count of items in which
+        // case we override with the actual count, so we should return 0 items.
+        $offset = (($maintenances) && ($request->get('offset') > $maintenances->count())) ? $maintenances->count() : $request->get('offset', 0);
+
+        // Check to make sure the limit is not higher than the max allowed
+        ((config('app.max_results') >= $request->input('limit')) && ($request->filled('limit'))) ? $limit = $request->input('limit') : $limit = config('app.max_results');
+
 
         $allowed_columns = [
                                 'id',
@@ -60,8 +64,8 @@ class AssetMaintenancesController extends Controller
                                 'asset_name',
                                 'user_id'
                             ];
-        $order = Input::get('order') === 'asc' ? 'asc' : 'desc';
-        $sort = in_array(Input::get('sort'), $allowed_columns) ? e($request->input('sort')) : 'created_at';
+        $order = $request->input('order') === 'asc' ? 'asc' : 'desc';
+        $sort = in_array($request->input('sort'), $allowed_columns) ? e($request->input('sort')) : 'created_at';
 
         switch ($sort) {
             case 'user_id':
