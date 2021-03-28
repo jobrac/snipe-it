@@ -13,7 +13,7 @@
     "node": ">=0.12"
   },
   "devDependencies": {
-    "axios": "^0.20.0",
+    "axios": "^0.21.1",
     "babel-preset-latest": "^6.24.1",
     "cross-env": "^5.0.5",
     "jquery": "^3.5.1",
