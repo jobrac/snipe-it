@@ -46,7 +46,7 @@
     "less": "github:less/less.js#efa6eb5306f28a7ef7e235d79ce854b780345591",
     "less-loader": "^4.1.0",
     "list.js": "^1.5.0",
-    "papaparse": "^4.3.3",
+    "papaparse": "^5.2.0",
     "phantomjs": "^2.1.7",
     "select2": "4.0.13",
     "tableexport.jquery.plugin": "^1.10.20",
